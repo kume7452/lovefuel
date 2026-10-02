@@ -1,0 +1,61 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>愛情加油中｜後台</title>
+<style>
+:root{--cream:#fef4e8;--wine:#7d1811;--rust:#c34f32;--pink:#f4c4b6;--teal:#4f9a9a;--gold:#f2a01e;--green:#8a9473}
+*{box-sizing:border-box}body{margin:0;background:#fbecca;color:var(--wine);font:15px/1.5 "Noto Sans TC",system-ui,sans-serif}
+.wrap{max-width:1100px;margin:auto;padding:16px}h1{margin:0;font-size:22px}
+.head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;position:sticky;top:0;background:#fbecca;padding:10px 0;z-index:2}
+button{font:inherit;font-weight:900;border:0;border-radius:99px;padding:.45em 1.1em;background:var(--wine);color:var(--cream);cursor:pointer}
+button.alt{background:var(--teal)}button.red{background:var(--rust)}
+.box{padding:8px 12px;border-radius:12px;background:#fff;border:2px solid var(--teal);margin:8px 0}
+.sum{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:8px 0}.sum div{background:#fff;border:2px solid var(--wine);border-radius:12px;padding:6px 10px}.sum b{display:block;font-size:26px}
+.card{background:#fff;border-radius:14px;border:2px solid var(--wine);overflow:auto;margin:10px 0}
+table{width:100%;border-collapse:collapse;min-width:760px}th,td{padding:7px 8px;border-bottom:1px solid #c34f3233;text-align:left;vertical-align:middle}th{background:var(--pink);position:sticky;top:0}
+tr.dim{opacity:.45}.ed{white-space:nowrap}.ed input{width:4.5em;font:inherit;font-weight:900;text-align:center;border:2px solid var(--wine);border-radius:8px;padding:2px}
+.ed button{padding:.1em .6em;margin:0 3px}select{font:inherit;border:2px solid var(--wine);border-radius:8px;background:#fff;color:var(--wine)}
+.bar{height:9px;border-radius:9px;background:var(--pink);overflow:hidden;min-width:70px}.bar i{display:block;height:100%;background:var(--rust)}
+.tg{padding:2px 9px;border-radius:99px;font-size:13px;white-space:nowrap}.ok{background:#8a947333}.out{background:#ddd}.wait{background:#f2a01e55}.hot{background:var(--rust);color:#fff}
+#login{max-width:340px;margin:18vh auto;background:#fff;border:3px solid var(--wine);border-radius:22px;padding:24px;text-align:center}
+#login input{font:inherit;font-size:22px;width:100%;text-align:center;border:2px solid var(--wine);border-radius:10px;padding:6px;margin:12px 0}
+#msg{color:var(--rust);font-weight:900;min-height:1.5em}small{opacity:.75}
+@media(max-width:640px){.sum{grid-template-columns:repeat(2,1fr)}}
+</style></head><body>
+<div id="login"><h1>後台登入</h1><input id="pin" type="password" inputmode="numeric" placeholder="密碼" autofocus><button onclick="login()">進入</button><div id="msg"></div></div>
+<div class="wrap" id="app" hidden>
+ <div class="head"><h1>愛情加油中｜獎品庫存</h1><span style="flex:1"></span><small id="upd"></small>
+  <button class="alt" onclick="load()">重新整理</button><button onclick="csv()">匯出紀錄 CSV</button><button class="red" onclick="reset()">全部重設</button></div>
+ <div class="box" id="time"></div>
+ <div class="sum"><div><small>原始總數</small><b id="s1">-</b></div><div><small>已抽出</small><b id="s2">-</b></div><div><small>剩餘</small><b id="s3">-</b></div><div><small>今日已抽</small><b id="s4">-</b></div></div>
+ <div class="card"><table><thead><tr><th>廠商</th><th>獎項</th><th>剩餘 / 總數</th><th>進度</th><th>機率</th><th>開放設定</th><th>狀態</th></tr></thead><tbody id="tb"></tbody></table></div>
+ <b>最近 50 筆抽獎紀錄</b>
+ <div class="card"><table><thead><tr><th>時間</th><th>廠商</th><th>獎項</th><th>裝置</th></tr></thead><tbody id="lg"></tbody></table></div>
+</div>
+<script>
+const API='https://script.google.com/macros/s/請貼上你的部署網址/exec'; // 與遊戲相同
+const $=s=>document.getElementById(s);let PIN=sessionStorage.getItem('lf_pin')||'',busy=false;
+async function call(q){const r=await fetch(API+'?pin='+encodeURIComponent(PIN)+'&'+q+'&r='+Date.now());return r.json()}
+async function login(){PIN=$('pin').value;$('msg').textContent='驗證中…';const j=await call('action=status').catch(()=>({ok:false,error:'連線失敗'}));
+ if(!j.ok){$('msg').textContent=j.error||'錯誤';return}sessionStorage.setItem('lf_pin',PIN);$('login').hidden=true;$('app').hidden=false;render(j)}
+$('pin').onkeydown=e=>{if(e.key==='Enter')login()};
+async function load(){if(busy||document.activeElement.tagName==='INPUT')return;try{const j=await call('action=status');if(j.ok)render(j)}catch(e){$('upd').textContent='⚠️ 連線失敗，稍後自動重試'}}
+function st(p){if(!p.left)return'<span class="tg out">已抽完</span>';if(p.mode==='closed')return'<span class="tg out">暫停</span>';if(p.forcing)return'<span class="tg hot">保底中（下一位必中）</span>';if(!p.open)return'<span class="tg wait">未開放</span>';return'<span class="tg ok">抽獎中</span>'}
+function render(j){
+ const tot=j.prizes.reduce((a,p)=>a+p.qty,0),left=j.prizes.reduce((a,p)=>a+p.left,0);
+ $('s1').textContent=tot;$('s2').textContent=j.drawn;$('s3').textContent=left;$('s4').textContent=j.today;
+ $('time').innerHTML='<b>伺服器時間（台灣）</b>　'+j.serverTime+'　<small>抽獎與開放時間皆以此為準，不受現場裝置時間影響</small>';
+ $('upd').textContent='更新：'+new Date().toLocaleTimeString('zh-TW',{hour12:false});
+ $('tb').innerHTML=j.prizes.map(p=>`<tr class="${p.left?'':'dim'}"><td>${p.vendor}</td><td>${p.name}</td>
+ <td class="ed"><button onclick="adj('${p.id}',${p.left-1})">−</button><input type="number" min="0" value="${p.left}" onchange="adj('${p.id}',this.value)"><button onclick="adj('${p.id}',${p.left+1})">＋</button><small>/ ${p.qty}</small></td>
+ <td><div class="bar"><i style="width:${p.qty?Math.min(100,Math.max(0,(p.qty-p.left)/p.qty*100)):0}%"></i></div></td><td>${(p.prob*100).toFixed(1)}%</td>
+ <td><select onchange="mode('${p.id}',this.value)">${[['auto',p.openAt?'依時間（'+p.openAt.slice(5,16)+'）':'自動'],['open','立即開放'],['closed','暫停']].map(([v,l])=>`<option value="${v}" ${p.mode===v?'selected':''}>${l}</option>`).join('')}</select>${p.forceAt?`<br><small>保底 ${p.forceAt.slice(5,16)}</small>`:''}</td><td>${st(p)}</td></tr>`).join('');
+ $('lg').innerHTML=j.recent.length?j.recent.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td><small>${r[3]}</small></td></tr>`).join(''):'<tr><td colspan="4">尚無紀錄</td></tr>'}
+async function upd(q){busy=true;try{const j=await call(q);if(j.ok)render(j);else alert(j.error)}catch(e){alert('儲存失敗，請重試')}busy=false}
+function adj(id,v){document.activeElement.blur();upd('action=set&id='+id+'&left='+Math.max(0,Math.floor(+v||0)))}
+function mode(id,v){upd('action=set&id='+id+'&mode='+v)}
+function reset(){if(!confirm('全部獎項恢復原始數量、清空紀錄？\n（舊紀錄會自動備份成新工作表）'))return;upd('action=reset')}
+async function csv(){const j=await call('action=log');if(!j.ok)return alert(j.error);
+ const t=[['時間','ID','廠商','獎項','裝置'],...j.rows].map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+t],{type:'text/csv'}));a.download='lovefuel_log.csv';a.click()}
+setInterval(()=>{if(!$('app').hidden)load()},6000);
+if(PIN){$('pin').value=PIN;login()}
+</script></body></html>
