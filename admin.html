@@ -56,7 +56,7 @@ function adj(id,v){document.activeElement.blur();upd('action=set&id='+id+'&left=
 function mode(id,v){upd('action=set&id='+id+'&mode='+v)}
 function reset(){if(!confirm('全部獎項恢復原始數量、清空紀錄？\n（舊紀錄會自動備份成新工作表）'))return;upd('action=reset')}
 async function csv(){const j=await call('action=log');if(!j.ok)return alert(j.error);
- const t=[['時間','ID','廠商','獎項','裝置'],...j.rows].map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+ const t=[['時間','ID','廠商','獎項','裝置','狀態'],...j.rows].map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+t],{type:'text/csv'}));a.download='lovefuel_log.csv';a.click()}
 setInterval(()=>{if(!$('app').hidden)load()},6000);
 if(PIN){$('pin').value=PIN;login()}
