@@ -94,7 +94,7 @@ function resetGame(){ROUND++;sfxClick();SPIN=null;$('stop').textContent='● 停
  想換成自己的音樂：把 mp3 放在同資料夾，填檔名，例如 const BGM_URL='bgm.mp3'; */
 const BGM_URL='';
 const BGM_VOL=.32, SFX_VOL=.8, ENGINE_VOL=1.9; // ENGINE_VOL：引擎聲音量（1＝原本，2＝約兩倍）
-const ENGINE_LOW=.5, ENGINE_HIGH=2.5; // 引擎聲「低速時音量」與「最高速時音量」，兩個差越多，加速時越聽得出越來越大聲
+const ENGINE_LOW=.35, ENGINE_HIGH=1.5; // 引擎聲「低速時音量」與「最高速時音量」，兩個差越多，加速時越聽得出越來越大聲
 const AU={ctx:null,on:true,mel:true};
 function aInit(){
  if(AU.ctx){if(AU.ctx.state==='suspended')AU.ctx.resume();return}
@@ -289,8 +289,9 @@ circle(cx,y,s,i){const cy=y+125;x.save();x.translate(cx,cy);x.rotate(Math.sin(t*
  x.save();x.translate(cx,cy-20);x.scale(.92,.92);ICON[s.id]();x.restore();txt(s.en,cx,cy+56,'32px Yellowtail,cursive',C.wine);return cy+118}
 };
 const OVR={},SPINRATE=9;
-function spinTick(){if(!SPIN||SPIN.done)return;const vis=SPIN.i*SP-cam*PAR+220<W+170;
- if(won!==null&&(!vis||t-SPIN.vt>.6)){SPIN.done=true;SPIN.settleT=vis?t:-9;OVR[SPIN.i]=won&&!won.error&&CATS[won.sign]?won.sign:'mail';if(vis)sfxReveal();return}
+const SPIN_MIN=1.8; // 招牌至少轉幾秒才揭曉
+function spinTick(){if(!SPIN||SPIN.done)return;const vis=SPIN.i*SP-cam*PAR+220<W+170;if(vis&&SPIN.vt===null){SPIN.vt=t;SPIN.t0=t}
+ if(won!==null&&vis&&t-SPIN.vt>SPIN_MIN){SPIN.done=true;SPIN.settleT=t;OVR[SPIN.i]=won&&!won.error&&CATS[won.sign]?won.sign:'mail';sfxReveal();return}
  if(vis){if(SPIN.vt===null){SPIN.vt=t;SPIN.t0=t}const k=Math.floor((t-SPIN.t0)*SPINRATE+.5);if(k!==SPIN.k){SPIN.k=k;sfxTick()}}}
 function sign(i,cx){const N=ORDER.length;let id=OVR[i]||ORDER[((i%N)+N)%N],sq=1,sp=SPIN&&SPIN.i===i;
  if(sp&&!SPIN.done){const ph=(t-SPIN.t0)*SPINRATE;id=ORDER[(Math.floor(ph+.5)+i)%N];sq=Math.max(.05,Math.abs(Math.cos((ph%1)*Math.PI)))}
