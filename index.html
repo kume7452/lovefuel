@@ -52,7 +52,7 @@ const CATS={
  cheer:{frame:'oval',en:'Cheers!',top:125}, heel:{frame:'shield',en:'Heels & Kisses',top:170}};
 const ORDER=Object.keys(CATS);ORDER.forEach(k=>CATS[k].id=k);
 const DEV=(()=>{let d;try{d=localStorage.getItem('lf_dev');if(!d){d='D'+Math.random().toString(36).slice(2,6).toUpperCase();localStorage.setItem('lf_dev',d)}}catch(e){d='D'+Math.random().toString(36).slice(2,6).toUpperCase()}return d})();
-async function drawPrize(){let why='';for(let k=0;k<3;k++){try{const c=new AbortController(),tm=setTimeout(()=>c.abort(),15000);
+async function drawPrize(){let why='';for(let k=0;k<2;k++){try{const c=new AbortController(),tm=setTimeout(()=>c.abort(),10000);
  const r=await fetch(API+'?action=draw&key='+encodeURIComponent(KEY)+'&dev='+DEV+'&r='+Date.now(),{signal:c.signal});clearTimeout(tm);
  const txt=await r.text();let j;try{j=JSON.parse(txt)}catch(e){why='E1 後端未回傳資料（部署存取權需設為「所有人」）';continue}
  if(j.ok)return j.prize;why=j.error==='key'?'E2 遊戲金鑰不符（試算表「設定」頁與 index.html 的 KEY 要相同）':'E3 後端錯誤：'+j.error;if(j.error==='key')break}
@@ -67,15 +67,17 @@ const DOTS=x.createPattern(dotC,'repeat');
 let state='idle',speed=0,target=0,cam=0,t=0,wheelA=0,last=performance.now(),puffs=[];
 const MAX=190,PX=5.2,CARX=480;
 const $=s=>document.getElementById(s);
-$('start').onclick=()=>{aInit();sfxStart();setTimeout(sfxHorn,1300);state='drive';target=MAX;$('start').style.display='none';$('stop').style.display='block';$('msg').textContent='往前開！想停就按停車'};
+let ROUND=0,driveT=0;const AUTO_BRAKE=12; // 開車超過幾秒沒按，自動煞車
+$('start').onclick=()=>{aInit();sfxStart();setTimeout(sfxHorn,1300);state='drive';driveT=t;won=null;const my=++ROUND;drawPrize().then(r=>{if(my===ROUND)won=r}); // 一發動就先在背景抽獎，煞車時結果已就緒
+ target=MAX;$('start').style.display='none';$('stop').style.display='block';$('msg').textContent='往前開！想停就按停車'};
 let camTarget=null,won=null,braked=false,SPIN=null,BK=null,dip=0,SKID=null,smokes=[],lastSign=null;const BRAKED=1150;let haltT=0;
 function pressStop(e){if(e)e.preventDefault();if(state!=='drive')return;state='brake';sfxClick();
  $('stop').disabled=true;$('stop').textContent='煞車中…';$('msg').textContent='煞車！看看下一個招牌是什麼…';
  let i=Math.ceil((cam*PAR+CARX-220)/SP);while(i*SP-cam*PAR+220<W+190)i++; // 畫面外的下一個招牌＝得獎招牌
  camTarget=(i*SP+220-CARX)/PAR;BK={tb:null,Db:Math.min(camTarget-cam,BRAKED)};
- SPIN={i,t0:t,k:-1,done:false,settleT:0,vt:null};won=null;drawPrize().then(r=>{won=r})}
+ SPIN={i,t0:t,k:-1,done:false,settleT:0,vt:null}}
 $('stop').addEventListener('pointerdown',pressStop);
-function resetGame(){sfxClick();SPIN=null;$('stop').textContent='● 停車';$('result').classList.remove('show');$('result').style.display='none';state='idle';BK=null;dip=0;target=0;speed=0;camTarget=null;won=null;braked=false;
+function resetGame(){ROUND++;sfxClick();SPIN=null;$('stop').textContent='● 停車';$('result').classList.remove('show');$('result').style.display='none';state='idle';BK=null;dip=0;target=0;speed=0;camTarget=null;won=null;braked=false;
  $('start').style.display='block';$('stop').style.display='none';$('stop').disabled=false;$('msg').textContent='準備好，一起出發！'}
 
 
@@ -376,6 +378,7 @@ function frame(now){
    if(u>=1){adv=camTarget-cam;speed=0;state='halt';haltT=t;SKID.c1=camTarget;sfxThud();$('msg').textContent=SPIN&&SPIN.done?'停好了 ♥':'轉轉轉…'}}}
  else if(state==='halt'||state==='stopped'){speed=0;adv=0;dip+=(0-dip)*Math.min(1,dt*7)}
  else{speed=target>speed?Math.min(target,speed+dt*(78+40*(1-speed/MAX))):Math.max(target,speed-dt*120);adv=speed*PX*dt}
+ if(state==='drive'&&t-driveT>AUTO_BRAKE)pressStop();
  spinTick();
  $('km').textContent=Math.round(speed);
  cam+=adv;wheelA+=adv/46;engine();
