@@ -84,6 +84,7 @@ function resetGame(){sfxClick();SPIN=null;$('stop').textContent='● 停車';$('
  想換成自己的音樂：把 mp3 放在同資料夾，填檔名，例如 const BGM_URL='bgm.mp3'; */
 const BGM_URL='';
 const BGM_VOL=.32, SFX_VOL=.8, ENGINE_VOL=1.9; // ENGINE_VOL：引擎聲音量（1＝原本，2＝約兩倍）
+const ENGINE_LOW=.35, ENGINE_HIGH=1.5; // 引擎聲「低速時音量」與「最高速時音量」，兩個差越多，加速時越聽得出越來越大聲
 const AU={ctx:null,on:true,mel:true};
 function aInit(){
  if(AU.ctx){if(AU.ctx.state==='suspended')AU.ctx.resume();return}
@@ -171,7 +172,7 @@ function engine(){if(!AU.ctx)return;const P=ENG||{wave:'sawtooth',base:46,span:1
  AU.o3.frequency.setTargetAtTime(rev,t,acc?.05:.15);AU.o4.frequency.setTargetAtTime(P.wave==='sine'?rev*1.5:rev/2,t,acc?.05:.15);
  AU.tf.frequency.setTargetAtTime(acc?P.cut[0]+fr*P.cut[1]:brk?P.cut[0]*.7:P.cut[0]*1.1,t,.08);
  AU.thr.gain.setTargetAtTime(run?(acc?P.acc*(.7+.6*e):brk?P.cru*(.3+e):idle?P.cru*.25:P.cru*(1+1.6*e)):0,t,.08);
- AU.engBus.gain.setTargetAtTime(ENGINE_VOL*(.35+1.15*e),t,.15); // 速度越快越大聲
+ AU.engBus.gain.setTargetAtTime(ENGINE_VOL*(ENGINE_LOW+(ENGINE_HIGH-ENGINE_LOW)*e*e),t,.15); // 速度越快越大聲
  AU.o1.frequency.setTargetAtTime(34+e*30,t,.2);AU.o2.frequency.setTargetAtTime(17+e*15,t,.2);AU.lp.frequency.setTargetAtTime(150+e*170,t,.2);
  AU.lfo.frequency.setTargetAtTime(P.chug?(idle?7:Math.max(P.chug,rev/P.chug)):.5,t,.1);AU.ld.gain.setTargetAtTime(P.chug?.4:0,t,.2);
  AU.eng.gain.setTargetAtTime(run?(idle?.07:.12+e*.06)*P.low+(P.low<1?.02:0):0,t,.25);AU.road.gain.setTargetAtTime(run&&!idle?e*.05:0,t,.3)}
