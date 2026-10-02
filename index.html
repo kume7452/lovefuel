@@ -86,7 +86,7 @@ function resetGame(){ROUND++;sfxClick();SPIN=null;$('stop').textContent='● 停
  想換成自己的音樂：把 mp3 放在同資料夾，填檔名，例如 const BGM_URL='bgm.mp3'; */
 const BGM_URL='';
 const BGM_VOL=.32, SFX_VOL=.8, ENGINE_VOL=1.9; // ENGINE_VOL：引擎聲音量（1＝原本，2＝約兩倍）
-const ENGINE_LOW=.35, ENGINE_HIGH=1.5; // 引擎聲「低速時音量」與「最高速時音量」，兩個差越多，加速時越聽得出越來越大聲
+const ENGINE_LOW=.5, ENGINE_HIGH=2; // 引擎聲「低速時音量」與「最高速時音量」，兩個差越多，加速時越聽得出越來越大聲
 const AU={ctx:null,on:true,mel:true};
 function aInit(){
  if(AU.ctx){if(AU.ctx.state==='suspended')AU.ctx.resume();return}
