@@ -32,6 +32,8 @@ tr.dim{opacity:.45}.ed{white-space:nowrap}.ed input{width:4.5em;font:inherit;fon
 </div>
 <script>
 const API='https://script.google.com/macros/s/AKfycbw-yI9XgSFbS5zXc_xAB4CaYnTXOt-shtGTi8k4bkwXJne_0-3b2Fy8lyoyyMiQ2BlbrA/exec'; // 與遊戲相同
+/* 後台「開放設定」可選的指定時間，要加其他時間就照格式往後加 */
+const OPEN_TIMES=['2026-11-15T10:00'];
 const $=s=>document.getElementById(s);let PIN=sessionStorage.getItem('lf_pin')||'',busy=false;
 async function call(q){const r=await fetch(API+'?pin='+encodeURIComponent(PIN)+'&'+q+'&r='+Date.now());return r.json()}
 async function login(){PIN=$('pin').value;$('msg').textContent='驗證中…';const j=await call('action=status').catch(()=>({ok:false,error:'連線失敗'}));
@@ -47,7 +49,7 @@ function render(j){
  $('tb').innerHTML=j.prizes.map(p=>`<tr class="${p.left?'':'dim'}"><td>${p.vendor}</td><td>${p.name}</td>
  <td class="ed"><button onclick="adj('${p.id}',${p.left-1})">−</button><input type="number" min="0" value="${p.left}" onchange="adj('${p.id}',this.value)"><button onclick="adj('${p.id}',${p.left+1})">＋</button><small>/ ${p.qty}</small></td>
  <td><div class="bar"><i style="width:${p.qty?Math.min(100,Math.max(0,(p.qty-p.left)/p.qty*100)):0}%"></i></div></td><td>${(p.prob*100).toFixed(1)}%</td>
- <td><select onchange="mode('${p.id}',this.value)">${[['auto',p.openAt?'依時間（'+p.openAt.slice(5,16)+'）':'自動'],['open','立即開放'],['closed','暫停']].map(([v,l])=>`<option value="${v}" ${p.mode===v?'selected':''}>${l}</option>`).join('')}</select>${p.forceAt?`<br><small>保底 ${p.forceAt.slice(5,16)}</small>`:''}</td><td>${st(p)}</td></tr>`).join('');
+ <td><select onchange="mode('${p.id}',this.value)">${[['auto',p.openAt?'依時間（'+p.openAt.slice(5,16)+'）':'自動'],['open','立即開放'],['closed','暫停'],...OPEN_TIMES.map(v=>['at:'+v,v.slice(5,7)+'/'+v.slice(8,10)+' '+v.slice(11)+' 開放'])].map(([v,l])=>`<option value="${v}" ${p.mode===v?'selected':''}>${l}</option>`).join('')}</select>${p.forceAt?`<br><small>保底 ${p.forceAt.slice(5,16)}</small>`:''}</td><td>${st(p)}</td></tr>`).join('');
  $('lg').innerHTML=j.recent.length?j.recent.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td><small>${r[3]}</small></td></tr>`).join(''):'<tr><td colspan="4">尚無紀錄</td></tr>'}
 async function upd(q){busy=true;try{const j=await call(q);if(j.ok)render(j);else alert(j.error)}catch(e){alert('儲存失敗，請重試')}busy=false}
 function adj(id,v){document.activeElement.blur();upd('action=set&id='+id+'&left='+Math.max(0,Math.floor(+v||0)))}
