@@ -31,7 +31,7 @@ tr.dim{opacity:.45}.ed{white-space:nowrap}.ed input{width:4.5em;font:inherit;fon
  <div class="card"><table><thead><tr><th>時間</th><th>廠商</th><th>獎項</th><th>裝置</th></tr></thead><tbody id="lg"></tbody></table></div>
 </div>
 <script>
-const API='https://script.google.com/macros/s/請貼上你的部署網址/exec'; // 與遊戲相同
+const API='https://script.google.com/macros/s/AKfycbw-yI9XgSFbS5zXc_xAB4CaYnTXOt-shtGTi8k4bkwXJne_0-3b2Fy8lyoyyMiQ2BlbrA/exec'; // 與遊戲相同
 const $=s=>document.getElementById(s);let PIN=sessionStorage.getItem('lf_pin')||'',busy=false;
 async function call(q){const r=await fetch(API+'?pin='+encodeURIComponent(PIN)+'&'+q+'&r='+Date.now());return r.json()}
 async function login(){PIN=$('pin').value;$('msg').textContent='驗證中…';const j=await call('action=status').catch(()=>({ok:false,error:'連線失敗'}));
