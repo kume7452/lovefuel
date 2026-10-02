@@ -39,7 +39,7 @@ button:active{transform:translateY(4px);box-shadow:0 3px 0 #4d0d09}
 </div>
 <script>
 /* ================= 連線設定（只需改這兩行） ================= */
-const API='https://script.google.com/macros/s/請貼上你的部署網址/exec'; // Apps Script 網頁應用程式網址
+const API='https://script.google.com/macros/s/AKfycbw-yI9XgSFbS5zXc_xAB4CaYnTXOt-shtGTi8k4bkwXJne_0-3b2Fy8lyoyyMiQ2BlbrA/exec'; // Apps Script 網頁應用程式網址
 const KEY='lovefuel2026';  // 需與試算表「設定」頁的 遊戲金鑰 相同
 /* 獎項、數量、開放時間全部在 Google 試算表管理；抽獎在伺服器端進行（以伺服器台灣時間判斷，不受裝置時間影響） */
 /* 招牌造型庫（沒對應獎項的招牌只當街景） */
@@ -88,11 +88,15 @@ function aInit(){
  AU.bgm=C_.createGain();AU.bgm.gain.value=BGM_VOL;AU.bgm.connect(AU.master);
  AU.sfx=C_.createGain();AU.sfx.gain.value=SFX_VOL;AU.sfx.connect(AU.master);
  const nb=C_.createBuffer(1,C_.sampleRate,C_.sampleRate),d=nb.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;AU.noise=nb;
- // 引擎聲
- const lp=C_.createBiquadFilter();lp.type='lowpass';lp.frequency.value=380;lp.Q.value=4;
- AU.eng=C_.createGain();AU.eng.gain.value=0;lp.connect(AU.eng);AU.eng.connect(AU.sfx);
- AU.o1=C_.createOscillator();AU.o1.type='sawtooth';AU.o2=C_.createOscillator();AU.o2.type='square';AU.o2.detune.value=-1200;
- AU.o1.connect(lp);AU.o2.connect(lp);AU.o1.frequency.value=AU.o2.frequency.value=40;AU.o1.start();AU.o2.start();AU.lp=lp;
+ // 引擎聲：低沉復古車「噗噗」聲＋輪胎路噪（取代原本的尖銳鋸齒波）
+ const lp=C_.createBiquadFilter();lp.type='lowpass';lp.frequency.value=160;lp.Q.value=.6;
+ const chug=C_.createGain();chug.gain.value=.6;AU.eng=C_.createGain();AU.eng.gain.value=0;
+ lp.connect(chug);chug.connect(AU.eng);AU.eng.connect(AU.sfx);
+ AU.o1=C_.createOscillator();AU.o1.type='triangle';AU.o2=C_.createOscillator();AU.o2.type='sine';
+ AU.o1.connect(lp);AU.o2.connect(lp);AU.o1.frequency.value=34;AU.o2.frequency.value=17;AU.o1.start();AU.o2.start();
+ AU.lfo=C_.createOscillator();AU.lfo.type='sine';AU.lfo.frequency.value=7;const ld=C_.createGain();ld.gain.value=.4;AU.lfo.connect(ld);ld.connect(chug.gain);AU.lfo.start();
+ const rn=C_.createBufferSource();rn.buffer=nb;rn.loop=true;const rf=C_.createBiquadFilter();rf.type='lowpass';rf.frequency.value=260;
+ AU.road=C_.createGain();AU.road.gain.value=0;rn.connect(rf);rf.connect(AU.road);AU.road.connect(AU.sfx);rn.start();AU.lp=lp;
  if(BGM_URL){AU.el=new Audio(BGM_URL);AU.el.loop=true;AU.el.volume=BGM_VOL*2;AU.el.muted=!AU.on;AU.el.play().catch(()=>{})}
  else{AU.next=C_.currentTime+.08;AU.step=0;setInterval(sched,25)}
  document.addEventListener('visibilitychange',()=>{document.hidden?C_.suspend():C_.resume()});
@@ -124,9 +128,11 @@ function sfxBrake(){if(!AU.ctx)return;const t=AU.ctx.currentTime;tone(t,2900,1.1
 function sfxWin(){if(!AU.ctx)return;const t=AU.ctx.currentTime+.05;[72,76,79,84].forEach((n,i)=>tone(t+i*.11,mf(n),.3,{vol:.16,out:AU.sfx,cut:3500}));
  [84,88,91,96].forEach(n=>tone(t+.5,mf(n),1.4,{type:'triangle',vol:.1,out:AU.sfx,cut:6000}));for(let i=0;i<6;i++)tone(t+.6+i*.09,mf(96+[0,4,7,12,7,4][i]),.3,{type:'sine',vol:.06,out:AU.sfx})}
 function sfxClick(){if(AU.ctx)tone(AU.ctx.currentTime,880,.08,{type:'sine',vol:.12,out:AU.sfx})}
-function engine(){if(!AU.ctx)return;const t=AU.ctx.currentTime,e=speed/MAX,run=state!=='idle';
- AU.o1.frequency.setTargetAtTime(38+e*95,t,.12);AU.o2.frequency.setTargetAtTime(38+e*95,t,.12);AU.lp.frequency.setTargetAtTime(280+e*900,t,.15);
- AU.eng.gain.setTargetAtTime(run?(state==='stopped'?.02:.05+e*.09):0,t,.2)}
+const ENGINE_ON=true; // 不要引擎聲改 false
+function engine(){if(!AU.ctx)return;const t=AU.ctx.currentTime,e=speed/MAX,run=ENGINE_ON&&state!=='idle';
+ AU.o1.frequency.setTargetAtTime(34+e*30,t,.25);AU.o2.frequency.setTargetAtTime(17+e*15,t,.25);AU.lp.frequency.setTargetAtTime(150+e*170,t,.25);
+ AU.lfo.frequency.setTargetAtTime(6+e*10,t,.25);
+ AU.eng.gain.setTargetAtTime(run?(state==='stopped'?.06:.1+e*.08):0,t,.3);AU.road.gain.setTargetAtTime(run&&state!=='stopped'?e*.05:0,t,.3)}
 function setSound(on){AU.on=on;$('snd').textContent=on?'🔊':'🔇';if(AU.master)AU.master.gain.setTargetAtTime(on?1:0,AU.ctx.currentTime,.05);if(AU.el)AU.el.muted=!on;try{localStorage.setItem('lf_snd',on?1:0)}catch(e){}}
 /* ---------- helpers ---------- */
 const ln=(w,c=C.wine)=>{x.lineWidth=w;x.strokeStyle=c;x.lineJoin='round';x.lineCap='round'};
