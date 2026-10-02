@@ -52,7 +52,7 @@ const CATS={
  cheer:{frame:'oval',en:'Cheers!',top:125}, heel:{frame:'shield',en:'Heels & Kisses',top:170}};
 const ORDER=Object.keys(CATS);ORDER.forEach(k=>CATS[k].id=k);
 const DEV=(()=>{let d;try{d=localStorage.getItem('lf_dev');if(!d){d='D'+Math.random().toString(36).slice(2,6).toUpperCase();localStorage.setItem('lf_dev',d)}}catch(e){d='D'+Math.random().toString(36).slice(2,6).toUpperCase()}return d})();
-async function drawPrize(){let why='';for(let k=0;k<2;k++){try{const c=new AbortController(),tm=setTimeout(()=>c.abort(),10000);
+async function drawPrize(){let why='';for(let k=0;k<2;k++){try{const c=new AbortController(),tm=setTimeout(()=>c.abort(),28000);
  const r=await fetch(API+'?action=draw&key='+encodeURIComponent(KEY)+'&dev='+DEV+'&r='+Date.now(),{signal:c.signal});clearTimeout(tm);
  const txt=await r.text();let j;try{j=JSON.parse(txt)}catch(e){why='E1 後端未回傳資料（部署存取權需設為「所有人」）';continue}
  if(j.ok)return j.prize;why=j.error==='key'?'E2 遊戲金鑰不符（試算表「設定」頁與 index.html 的 KEY 要相同）':'E3 後端錯誤：'+j.error;if(j.error==='key')break}
@@ -67,8 +67,16 @@ const DOTS=x.createPattern(dotC,'repeat');
 let state='idle',speed=0,target=0,cam=0,t=0,wheelA=0,last=performance.now(),puffs=[];
 const MAX=190,PX=5.2,CARX=480;
 const $=s=>document.getElementById(s);
+/* 預抽機制：上一組看結果時，就先在背景抽好下一組，按發動時結果已就緒，多人同時玩也不用等。
+   預抽結果閒置超過 TICKET_MIN 分鐘沒人玩，會自動退回庫存（避免大獎卡在沒人用的平板裡） */
+const TICKET_MIN=4;let NEXT=null;
+function prefetch(){if(NEXT)return;const o={at:Date.now(),res:null};o.p=drawPrize().then(r=>{o.res=r;return r});NEXT=o}
+function releaseTicket(r){if(r&&r.tid)fetch(API+'?action=release&key='+encodeURIComponent(KEY)+'&tid='+r.tid).catch(()=>{})}
+function takeTicket(){let o=NEXT;NEXT=null;if(!o||Date.now()-o.at>TICKET_MIN*6e4||(o.res&&o.res.error)){if(o)o.p.then(releaseTicket);o={p:drawPrize()}}return o.p}
+setInterval(()=>{if(NEXT&&Date.now()-NEXT.at>TICKET_MIN*6e4){const o=NEXT;NEXT=null;o.p.then(releaseTicket)}},30000);
+addEventListener('pagehide',()=>{if(NEXT&&NEXT.res&&NEXT.res.tid)navigator.sendBeacon(API+'?action=release&key='+encodeURIComponent(KEY)+'&tid='+NEXT.res.tid)});
 let ROUND=0,driveT=0;const AUTO_BRAKE=12; // 開車超過幾秒沒按，自動煞車
-$('start').onclick=()=>{aInit();sfxStart();setTimeout(sfxHorn,1300);state='drive';driveT=t;won=null;const my=++ROUND;drawPrize().then(r=>{if(my===ROUND)won=r}); // 一發動就先在背景抽獎，煞車時結果已就緒
+$('start').onclick=()=>{aInit();sfxStart();setTimeout(sfxHorn,1300);state='drive';driveT=t;won=null;const my=++ROUND;takeTicket().then(r=>{if(my===ROUND)won=r}); // 用預抽好的結果，煞車時立即揭曉
  target=MAX;$('start').style.display='none';$('stop').style.display='block';$('msg').textContent='往前開！想停就按停車'};
 let camTarget=null,won=null,braked=false,SPIN=null,BK=null,dip=0,SKID=null,smokes=[],lastSign=null;const BRAKED=1150;let haltT=0;
 function pressStop(e){if(e)e.preventDefault();if(state!=='drive')return;state='brake';sfxClick();
@@ -86,7 +94,7 @@ function resetGame(){ROUND++;sfxClick();SPIN=null;$('stop').textContent='● 停
  想換成自己的音樂：把 mp3 放在同資料夾，填檔名，例如 const BGM_URL='bgm.mp3'; */
 const BGM_URL='';
 const BGM_VOL=.32, SFX_VOL=.8, ENGINE_VOL=1.9; // ENGINE_VOL：引擎聲音量（1＝原本，2＝約兩倍）
-const ENGINE_LOW=.5, ENGINE_HIGH=2; // 引擎聲「低速時音量」與「最高速時音量」，兩個差越多，加速時越聽得出越來越大聲
+const ENGINE_LOW=.35, ENGINE_HIGH=1.5; // 引擎聲「低速時音量」與「最高速時音量」，兩個差越多，加速時越聽得出越來越大聲
 const AU={ctx:null,on:true,mel:true};
 function aInit(){
  if(AU.ctx){if(AU.ctx.state==='suspended')AU.ctx.resume();return}
@@ -388,7 +396,7 @@ function frame(now){
   if(won&&!won.error){$('stopAt').textContent=won.vendor;$('prize').textContent=won.name+(won.value?'｜價值 $'+Number(won.value).toLocaleString():'');$('redeem').textContent=won.redeem;$('redeem').className=won.redeem.includes('下訂')?'hot':''}
   else if(won&&won.error){$('stopAt').textContent='網路忙碌中';$('prize').innerHTML='請工作人員協助，按「下一組」再試一次<br><small style="opacity:.6">'+(won.why||'')+'</small>';$('redeem').textContent=''}
   else{$('stopAt').textContent='本時段獎品已全數送出';$('prize').textContent='謝謝參加，祝新婚愉快 ♥';$('redeem').textContent=''}
-  setTimeout(()=>{sfxWin();$('result').style.display='grid';requestAnimationFrame(()=>$('result').classList.add('show'))},350)}
+  prefetch();setTimeout(()=>{sfxWin();$('result').style.display='grid';requestAnimationFrame(()=>$('result').classList.add('show'))},350)}
  requestAnimationFrame(frame);
 }
 try{if(localStorage.getItem('lf_snd')==='0'){AU.on=false;$('snd').textContent='🔇'}}catch(e){}
