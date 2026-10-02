@@ -52,9 +52,11 @@ const CATS={
  cheer:{frame:'oval',en:'Cheers!',top:125}, heel:{frame:'shield',en:'Heels & Kisses',top:170}};
 const ORDER=Object.keys(CATS);ORDER.forEach(k=>CATS[k].id=k);
 const DEV=(()=>{let d;try{d=localStorage.getItem('lf_dev');if(!d){d='D'+Math.random().toString(36).slice(2,6).toUpperCase();localStorage.setItem('lf_dev',d)}}catch(e){d='D'+Math.random().toString(36).slice(2,6).toUpperCase()}return d})();
-async function drawPrize(){for(let k=0;k<3;k++){try{const c=new AbortController(),tm=setTimeout(()=>c.abort(),15000);
- const r=await fetch(API+'?action=draw&key='+encodeURIComponent(KEY)+'&dev='+DEV+'&r='+Date.now(),{signal:c.signal});clearTimeout(tm);const j=await r.json();
- if(j.ok)return j.prize; if(j.error)console.warn(j.error)}catch(e){console.warn(e)}await new Promise(r=>setTimeout(r,800))}return{error:true}}
+async function drawPrize(){let why='';for(let k=0;k<3;k++){try{const c=new AbortController(),tm=setTimeout(()=>c.abort(),15000);
+ const r=await fetch(API+'?action=draw&key='+encodeURIComponent(KEY)+'&dev='+DEV+'&r='+Date.now(),{signal:c.signal});clearTimeout(tm);
+ const txt=await r.text();let j;try{j=JSON.parse(txt)}catch(e){why='E1 後端未回傳資料（部署存取權需設為「所有人」）';continue}
+ if(j.ok)return j.prize;why=j.error==='key'?'E2 遊戲金鑰不符（試算表「設定」頁與 index.html 的 KEY 要相同）':'E3 後端錯誤：'+j.error;if(j.error==='key')break}
+ catch(e){why=e.name==='AbortError'?'E4 連線逾時':'E5 無法連線（部署存取權需設為「所有人」，或網址錯誤）'}await new Promise(r=>setTimeout(r,800))}return{error:true,why}}
 const W=1600,H=900,GROUND=690,SP=440,PAR=.75;
 const C={bg:'#fbecca',cream:'#fef4e8',wine:'#7d1811',rust:'#c34f32',pink:'#f4c4b6',teal:'#4f9a9a',gold:'#f2a01e',green:'#8a9473',road:'#5b2a22',sand:'#efad65',mesa:'#e2805a',ice:'#cfe8e3'};
 const cv=document.getElementById('c'),x=cv.getContext('2d');
@@ -65,13 +67,15 @@ const DOTS=x.createPattern(dotC,'repeat');
 let state='idle',speed=0,target=0,cam=0,t=0,wheelA=0,last=performance.now(),puffs=[];
 const MAX=190,PX=5.2,CARX=480;
 const $=s=>document.getElementById(s);
-$('start').onclick=()=>{aInit();sfxHorn();state='drive';target=MAX;$('start').style.display='none';$('stop').style.display='block';$('msg').textContent='往前開！想停就按停車'};
-let camTarget=null,won=null,braked=false;const BRAKE=1400;
-$('stop').onclick=async()=>{if(state!=='drive')return;sfxClick();state='brake';$('stop').disabled=true;$('msg').textContent='減速中…';
- won=await drawPrize();
- const i=Math.ceil((cam*PAR+W+220-220)/SP); // 畫面外的下一面招牌，悄悄換成得獎招牌
- OVR[i]=won&&!won.error&&CATS[won.sign]?won.sign:'mail';camTarget=(i*SP+220-CARX)/PAR};
-function resetGame(){sfxClick();$('result').classList.remove('show');$('result').style.display='none';state='idle';target=0;speed=0;camTarget=null;won=null;braked=false;
+$('start').onclick=()=>{aInit();sfxStart();setTimeout(sfxHorn,1300);state='drive';target=MAX;$('start').style.display='none';$('stop').style.display='block';$('msg').textContent='往前開！想停就按停車'};
+let camTarget=null,won=null,braked=false,SPIN=null,BK=null,dip=0,SKID=null,smokes=[],lastSign=null;const BRAKED=1150;let haltT=0;
+function pressStop(e){if(e)e.preventDefault();if(state!=='drive')return;state='brake';sfxClick();
+ $('stop').disabled=true;$('stop').textContent='煞車中…';$('msg').textContent='煞車！看看下一個招牌是什麼…';
+ let i=Math.ceil((cam*PAR+CARX-220)/SP);while(i*SP-cam*PAR+220<W+190)i++; // 畫面外的下一個招牌＝得獎招牌
+ camTarget=(i*SP+220-CARX)/PAR;BK={tb:null,Db:Math.min(camTarget-cam,BRAKED)};
+ SPIN={i,t0:t,k:-1,done:false,settleT:0,vt:null};won=null;drawPrize().then(r=>{won=r})}
+$('stop').addEventListener('pointerdown',pressStop);
+function resetGame(){sfxClick();SPIN=null;$('stop').textContent='● 停車';$('result').classList.remove('show');$('result').style.display='none';state='idle';BK=null;dip=0;target=0;speed=0;camTarget=null;won=null;braked=false;
  $('start').style.display='block';$('stop').style.display='none';$('stop').disabled=false;$('msg').textContent='準備好，一起出發！'}
 
 
@@ -79,24 +83,27 @@ function resetGame(){sfxClick();$('result').classList.remove('show');$('result')
  預設：內建 50 年代 Shuffle 原創配樂（程式即時合成，無版權問題、不需檔案）
  想換成自己的音樂：把 mp3 放在同資料夾，填檔名，例如 const BGM_URL='bgm.mp3'; */
 const BGM_URL='';
-const BGM_VOL=.32, SFX_VOL=.8;
+const BGM_VOL=.32, SFX_VOL=.8, ENGINE_VOL=1.9; // ENGINE_VOL：引擎聲音量（1＝原本，2＝約兩倍）
 const AU={ctx:null,on:true,mel:true};
 function aInit(){
  if(AU.ctx){if(AU.ctx.state==='suspended')AU.ctx.resume();return}
  const C_=new (window.AudioContext||window.webkitAudioContext)();AU.ctx=C_;
- AU.master=C_.createGain();AU.master.connect(C_.destination);AU.master.gain.value=AU.on?1:0;
+ AU.master=C_.createGain();const cp=C_.createDynamicsCompressor();cp.threshold.value=-10;cp.ratio.value=4;AU.master.connect(cp);cp.connect(C_.destination);AU.master.gain.value=AU.on?1:0;
  AU.bgm=C_.createGain();AU.bgm.gain.value=BGM_VOL;AU.bgm.connect(AU.master);
- AU.sfx=C_.createGain();AU.sfx.gain.value=SFX_VOL;AU.sfx.connect(AU.master);
+ AU.sfx=C_.createGain();AU.sfx.gain.value=SFX_VOL;AU.sfx.connect(AU.master);AU.engBus=C_.createGain();AU.engBus.gain.value=ENGINE_VOL;AU.engBus.connect(AU.sfx);
  const nb=C_.createBuffer(1,C_.sampleRate,C_.sampleRate),d=nb.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;AU.noise=nb;
  // 引擎聲：低沉復古車「噗噗」聲＋輪胎路噪（取代原本的尖銳鋸齒波）
  const lp=C_.createBiquadFilter();lp.type='lowpass';lp.frequency.value=160;lp.Q.value=.6;
  const chug=C_.createGain();chug.gain.value=.6;AU.eng=C_.createGain();AU.eng.gain.value=0;
- lp.connect(chug);chug.connect(AU.eng);AU.eng.connect(AU.sfx);
+ lp.connect(chug);chug.connect(AU.eng);AU.eng.connect(AU.engBus);
  AU.o1=C_.createOscillator();AU.o1.type='triangle';AU.o2=C_.createOscillator();AU.o2.type='sine';
  AU.o1.connect(lp);AU.o2.connect(lp);AU.o1.frequency.value=34;AU.o2.frequency.value=17;AU.o1.start();AU.o2.start();
- AU.lfo=C_.createOscillator();AU.lfo.type='sine';AU.lfo.frequency.value=7;const ld=C_.createGain();ld.gain.value=.4;AU.lfo.connect(ld);ld.connect(chug.gain);AU.lfo.start();
+ AU.lfo=C_.createOscillator();AU.lfo.type='sine';AU.lfo.frequency.value=7;const ld=C_.createGain();ld.gain.value=.4;AU.ld=ld;AU.lfo.connect(ld);ld.connect(chug.gain);AU.lfo.start();
  const rn=C_.createBufferSource();rn.buffer=nb;rn.loop=true;const rf=C_.createBiquadFilter();rf.type='lowpass';rf.frequency.value=260;
- AU.road=C_.createGain();AU.road.gain.value=0;rn.connect(rf);rf.connect(AU.road);AU.road.connect(AU.sfx);rn.start();AU.lp=lp;
+ AU.road=C_.createGain();AU.road.gain.value=0;rn.connect(rf);rf.connect(AU.road);AU.road.connect(AU.engBus);rn.start();AU.lp=lp;
+ AU.o3=C_.createOscillator();AU.o3.type='sawtooth';AU.o3.frequency.value=68;const tf=C_.createBiquadFilter();tf.type='lowpass';tf.frequency.value=420;tf.Q.value=.7;AU.tf=tf;
+ AU.thr=C_.createGain();AU.thr.gain.value=0;AU.o3.connect(tf);tf.connect(AU.thr);AU.thr.connect(chug);AU.o3.start();
+ AU.o4=C_.createOscillator();AU.o4.type='square';const g4=C_.createGain();g4.gain.value=.35;AU.o4.connect(g4);g4.connect(tf);AU.o4.start();AU.gear=0;
  if(BGM_URL){AU.el=new Audio(BGM_URL);AU.el.loop=true;AU.el.volume=BGM_VOL*2;AU.el.muted=!AU.on;AU.el.play().catch(()=>{})}
  else{AU.next=C_.currentTime+.08;AU.step=0;setInterval(sched,25)}
  document.addEventListener('visibilitychange',()=>{document.hidden?C_.suspend():C_.resume()});
@@ -124,15 +131,50 @@ function sched(){if(!AU.ctx||AU.ctx.state!=='running')return;
   const ph=cyc%4;if(AU.mel&&ph<3){const M=ph===2?MEL2:MEL;M.filter(m=>m[0]===bar&&m[1]===e).forEach(m=>{const d=m[3]*BEAT*.5*.95;tone(t,mf(m[2]),d,{type:'square',vol:.07,cut:2400,a:.01});tone(t,mf(m[2]+12),d,{type:'triangle',vol:.025,cut:4000})})}
   AU.step++;AU.next+=e%2===0?BEAT*.64:BEAT*.36}}
 function sfxHorn(){if(!AU.ctx)return;const t=AU.ctx.currentTime;[0,.22].forEach(d=>[[440,.13],[554,.13]].forEach(([f,v])=>tone(t+d,f,.18,{vol:v,out:AU.sfx,cut:2000})))}
-function sfxBrake(){if(!AU.ctx)return;const t=AU.ctx.currentTime;tone(t,2900,1.1,{type:'sine',vol:.07,out:AU.sfx,a:.05,glide:.82});noiseHit(t,1,{vol:.12,type:'bandpass',f:3000,out:AU.sfx})}
-function sfxWin(){if(!AU.ctx)return;const t=AU.ctx.currentTime+.05;[72,76,79,84].forEach((n,i)=>tone(t+i*.11,mf(n),.3,{vol:.16,out:AU.sfx,cut:3500}));
+function sfxStart(){if(!AU.ctx)return;const t=AU.ctx.currentTime;
+ [0,.13,.26].forEach(d=>{noiseHit(t+d,.09,{vol:.35,type:'lowpass',f:500,out:AU.sfx});tone(t+d,55,.1,{type:'triangle',vol:.25,out:AU.sfx,cut:300})}); // 發動
+ tone(t+.42,42,1.3,{type:'sawtooth',vol:.32,out:AU.sfx,cut:700,a:.12,glide:2.6});tone(t+.42,84,1.1,{type:'triangle',vol:.18,out:AU.sfx,cut:900,a:.12,glide:2.2})} // 轟～
+function nz(t,dur,{vol=.2,type='bandpass',f=2000,Q=1,a=.02,out=AU.sfx}={}){const c=AU.ctx,s=c.createBufferSource(),fl=c.createBiquadFilter(),g=c.createGain();
+ s.buffer=AU.noise;s.loop=true;fl.type=type;fl.frequency.value=f;fl.Q.value=Q;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vol,t+a);g.gain.setValueAtTime(vol,t+Math.max(a,dur*.7));g.gain.exponentialRampToValueAtTime(.0008,t+dur);
+ s.connect(fl);fl.connect(g);g.connect(out);s.start(t,Math.random()*.5);s.stop(t+dur+.05);return fl}
+function sfxBrake(T=1.4){if(!AU.ctx)return;const c=AU.ctx,t=c.currentTime; // 輪胎尖叫＋摩擦
+ [1180,1245].forEach((f,k)=>{const o=c.createOscillator(),g=c.createGain(),v=c.createOscillator(),vd=c.createGain();o.type='sine';o.frequency.setValueAtTime(f,t);o.frequency.linearRampToValueAtTime(f*.86,t+T);
+  v.frequency.value=11+k*3;vd.gain.value=28;v.connect(vd);vd.connect(o.frequency);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.055,t+.04);g.gain.setValueAtTime(.05,t+T*.75);g.gain.exponentialRampToValueAtTime(.0008,t+T+.08);
+  o.connect(g);g.connect(AU.sfx);o.start(t);v.start(t);o.stop(t+T+.1);v.stop(t+T+.1)});
+ const fl=nz(t,T+.05,{vol:.26,f:2300,Q:4});fl.frequency.linearRampToValueAtTime(1700,t+T);
+ nz(t,T*.8,{vol:.22,type:'lowpass',f:260,Q:.7})}
+function sfxThud(){if(!AU.ctx)return;const t=AU.ctx.currentTime;tone(t,95,.32,{type:'sine',vol:.45,out:AU.sfx,glide:.5});nz(t,.18,{vol:.25,type:'lowpass',f:500});tone(t+.12,70,.2,{type:'sine',vol:.15,out:AU.sfx,glide:.7})}
+function sfxShift(){if(!AU.ctx)return;const t=AU.ctx.currentTime;nz(t,.06,{vol:.12,type:'highpass',f:2500,a:.003});tone(t,140,.07,{type:'triangle',vol:.07,out:AU.sfx})}
+const WHOOSH_ON=false; // 經過招牌的「咻」聲，不要改 false
+function sfxWhoosh(e){if(!AU.ctx||!WHOOSH_ON)return;const t=AU.ctx.currentTime,fl=nz(t,.45,{vol:.09*e,f:700,Q:1.5,a:.15});fl.frequency.linearRampToValueAtTime(1900,t+.2);fl.frequency.linearRampToValueAtTime(600,t+.45)}
+function sfxTick(){if(AU.ctx)tone(AU.ctx.currentTime,1500+Math.random()*200,.04,{type:'square',vol:.05,out:AU.sfx,cut:3000})}
+function sfxReveal(){if(!AU.ctx)return;const t=AU.ctx.currentTime;[1568,2093,2637].forEach((f,i)=>tone(t+i*.06,f,1.2,{type:'triangle',vol:.12,out:AU.sfx,cut:8000}))}
+function sfxClap(){if(!AU.ctx)return;const t=AU.ctx.currentTime;for(let i=0;i<46;i++){const d=Math.random()*2.2;noiseHit(t+.3+d,.06,{vol:.18*(1-d/2.6),type:'bandpass',f:900+Math.random()*900,out:AU.sfx})}}
+function sfxWin(){if(!AU.ctx)return;sfxClap();const t=AU.ctx.currentTime+.05;[72,76,79,84].forEach((n,i)=>tone(t+i*.11,mf(n),.3,{vol:.16,out:AU.sfx,cut:3500}));
  [84,88,91,96].forEach(n=>tone(t+.5,mf(n),1.4,{type:'triangle',vol:.1,out:AU.sfx,cut:6000}));for(let i=0;i<6;i++)tone(t+.6+i*.09,mf(96+[0,4,7,12,7,4][i]),.3,{type:'sine',vol:.06,out:AU.sfx})}
 function sfxClick(){if(AU.ctx)tone(AU.ctx.currentTime,880,.08,{type:'sine',vol:.12,out:AU.sfx})}
 const ENGINE_ON=true; // 不要引擎聲改 false
-function engine(){if(!AU.ctx)return;const t=AU.ctx.currentTime,e=speed/MAX,run=ENGINE_ON&&state!=='idle';
- AU.o1.frequency.setTargetAtTime(34+e*30,t,.25);AU.o2.frequency.setTargetAtTime(17+e*15,t,.25);AU.lp.frequency.setTargetAtTime(150+e*170,t,.25);
- AU.lfo.frequency.setTargetAtTime(6+e*10,t,.25);
- AU.eng.gain.setTargetAtTime(run?(state==='stopped'?.06:.1+e*.08):0,t,.3);AU.road.gain.setTargetAtTime(run&&state!=='stopped'?e*.05:0,t,.3)}
+/* 引擎風格：v8（美式肌肉車）／vintage（老爺車噗噗）／cartoon（卡通玩具車）／electric（電動車）
+   試聽：網址後面加 ?engine=vintage 即可，不用改檔 */
+const ENGINE_STYLE=new URLSearchParams(location.search).get('engine')||'v8';
+const ENG={v8:{wave:'sawtooth',base:46,span:105,gstep:10,cut:[380,1100],acc:.32,cru:.12,chug:7,low:1,gears:1},
+ vintage:{wave:'triangle',base:34,span:58,gstep:6,cut:[300,520],acc:.34,cru:.14,chug:4,low:1.3,gears:1},
+ cartoon:{wave:'square',base:105,span:230,gstep:25,cut:[900,1700],acc:.12,cru:.06,chug:14,low:.4,gears:1},
+ electric:{wave:'sine',base:170,span:640,gstep:0,cut:[1800,2400],acc:.07,cru:.045,chug:0,low:.15,gears:0}}[ENGINE_STYLE]||null;
+function engine(){if(!AU.ctx)return;const P=ENG||{wave:'sawtooth',base:46,span:105,gstep:10,cut:[380,1100],acc:.32,cru:.12,chug:7,low:1,gears:1};
+ if(AU.o3.type!==P.wave){AU.o3.type=P.wave;AU.o4.type=P.wave==='sine'?'sine':'square'}
+ const t=AU.ctx.currentTime,e=speed/MAX,run=ENGINE_ON&&state!=='idle',idle=state==='halt'||state==='stopped';
+ const G=P.gears?[0,62,122,191]:[0,191,192,193];let g=0;while(g<2&&speed>=G[g+1])g++;const fr=Math.min(1,(speed-G[g])/(G[g+1]-G[g]));
+ const acc=state==='drive'&&speed<target-1,brk=state==='brake'&&BK&&BK.tb!==null;
+ if(P.gears&&acc&&g>AU.gear)sfxShift();AU.gear=g;
+ const rev=idle?P.base*.9:P.base+fr*P.span+g*P.gstep;
+ AU.o3.frequency.setTargetAtTime(rev,t,acc?.05:.15);AU.o4.frequency.setTargetAtTime(P.wave==='sine'?rev*1.5:rev/2,t,acc?.05:.15);
+ AU.tf.frequency.setTargetAtTime(acc?P.cut[0]+fr*P.cut[1]:brk?P.cut[0]*.7:P.cut[0]*1.1,t,.08);
+ AU.thr.gain.setTargetAtTime(run?(acc?P.acc*(.7+.6*e):brk?P.cru*(.3+e):idle?P.cru*.25:P.cru*(1+1.6*e)):0,t,.08);
+ AU.engBus.gain.setTargetAtTime(ENGINE_VOL*(.35+1.15*e),t,.15); // 速度越快越大聲
+ AU.o1.frequency.setTargetAtTime(34+e*30,t,.2);AU.o2.frequency.setTargetAtTime(17+e*15,t,.2);AU.lp.frequency.setTargetAtTime(150+e*170,t,.2);
+ AU.lfo.frequency.setTargetAtTime(P.chug?(idle?7:Math.max(P.chug,rev/P.chug)):.5,t,.1);AU.ld.gain.setTargetAtTime(P.chug?.4:0,t,.2);
+ AU.eng.gain.setTargetAtTime(run?(idle?.07:.12+e*.06)*P.low+(P.low<1?.02:0):0,t,.25);AU.road.gain.setTargetAtTime(run&&!idle?e*.05:0,t,.3)}
 function setSound(on){AU.on=on;$('snd').textContent=on?'🔊':'🔇';if(AU.master)AU.master.gain.setTargetAtTime(on?1:0,AU.ctx.currentTime,.05);if(AU.el)AU.el.muted=!on;try{localStorage.setItem('lf_snd',on?1:0)}catch(e){}}
 /* ---------- helpers ---------- */
 const ln=(w,c=C.wine)=>{x.lineWidth=w;x.strokeStyle=c;x.lineJoin='round';x.lineCap='round'};
@@ -235,8 +277,16 @@ circle(cx,y,s,i){const cy=y+125;x.save();x.translate(cx,cy);x.rotate(Math.sin(t*
  shadowed(()=>{x.beginPath();x.arc(cx,cy,118,0,7)});fs(C.cream,9);x.beginPath();x.arc(cx,cy,100,0,7);ln(4,C.rust);x.stroke();bulbsOnEllipse(cx,cy,109,109,20,i);
  x.save();x.translate(cx,cy-20);x.scale(.92,.92);ICON[s.id]();x.restore();txt(s.en,cx,cy+56,'32px Yellowtail,cursive',C.wine);return cy+118}
 };
-const OVR={};function sign(i,cx){const N=ORDER.length,s=CATS[OVR[i]||ORDER[((i%N)+N)%N]];const bob=Math.sin(t*1.5+i)*1.5;
- pole(cx,s.top+150);FRAME[s.frame](cx,s.top+60+bob,s,i)}
+const OVR={},SPINRATE=9;
+function spinTick(){if(!SPIN||SPIN.done)return;const vis=SPIN.i*SP-cam*PAR+220<W+170;
+ if(won!==null&&(!vis||t-SPIN.vt>.6)){SPIN.done=true;SPIN.settleT=vis?t:-9;OVR[SPIN.i]=won&&!won.error&&CATS[won.sign]?won.sign:'mail';if(vis)sfxReveal();return}
+ if(vis){if(SPIN.vt===null){SPIN.vt=t;SPIN.t0=t}const k=Math.floor((t-SPIN.t0)*SPINRATE+.5);if(k!==SPIN.k){SPIN.k=k;sfxTick()}}}
+function sign(i,cx){const N=ORDER.length;let id=OVR[i]||ORDER[((i%N)+N)%N],sq=1,sp=SPIN&&SPIN.i===i;
+ if(sp&&!SPIN.done){const ph=(t-SPIN.t0)*SPINRATE;id=ORDER[(Math.floor(ph+.5)+i)%N];sq=Math.max(.05,Math.abs(Math.cos((ph%1)*Math.PI)))}
+ else if(sp){const u=Math.min(1,(t-SPIN.settleT)/.45);sq=1+2.2*Math.pow(u-1,3)+1.2*Math.pow(u-1,2);}
+ const s=CATS[id],bob=Math.sin(t*1.5+i)*1.5;pole(cx,s.top+150);
+ x.save();x.translate(cx,0);x.scale(Math.max(.05,sq),1);x.translate(-cx,0);FRAME[s.frame](cx,s.top+60+bob,s,i);x.restore();
+ if(sp&&SPIN.done){const u=(t-SPIN.settleT);if(u<1.2){const cy=s.top+180;for(let k=0;k<10;k++){const a=k/10*Math.PI*2+.3,r=120+u*260;x.globalAlpha=1-u/1.2;spark(cx+Math.cos(a)*r,cy+Math.sin(a)*r*.8,18*(1-u/1.4),k%2?C.gold:C.rust)}x.globalAlpha=1}}}
 
 /* ---------- world ---------- */
 function hills(off,base,amp,col,seed){x.beginPath();x.moveTo(0,H);for(let X=0;X<=W+40;X+=40){const u=X+off;x.lineTo(X,base-amp*(.55*Math.sin(u*.004+seed)+.3*Math.sin(u*.011+seed*2)+.15*Math.sin(u*.023)))}x.lineTo(W,H);x.closePath();x.fillStyle=col;x.fill()}
@@ -270,7 +320,7 @@ function car(){
  const e=speed/MAX,bob=Math.sin(t*20)*2.2*e,cx=470,base=GROUND+92;
  // shadow
  x.fillStyle='rgba(60,15,10,.3)';x.beginPath();x.ellipse(cx+10,base+48,250,18,0,0,7);x.fill();
- x.save();x.translate(cx,base+bob);x.rotate(-0.01*e);
+ x.save();x.translate(cx,base+bob);x.rotate(-0.01*e+dip);
  x.lineJoin='round';x.lineWidth=8;x.strokeStyle=C.wine;
  // roof (teal hardtop)
  x.beginPath();x.moveTo(-120,-70);x.bezierCurveTo(-100,-150,40,-158,80,-138);x.bezierCurveTo(105,-125,125,-95,140,-70);x.closePath();
@@ -293,7 +343,7 @@ function car(){
  x.fillStyle=C.cream;rr(-268,10,46,26,12);x.fill();x.stroke();rr(244,8,40,26,12);x.fill();x.stroke();
  // headlight / taillight
  x.beginPath();x.ellipse(256,-30,14,18,0,0,7);x.fillStyle=C.gold;x.fill();x.stroke();
- x.fillStyle=C.rust;rr(-256,-42,16,26,6);x.fill();x.stroke();
+ const bl=state==='brake'||state==='halt';if(bl){x.fillStyle='rgba(255,70,40,.35)';x.beginPath();x.arc(-250,-29,30,0,7);x.fill()}x.fillStyle=bl?'#ff3b22':C.rust;rr(-256,-42,16,26,6);x.fill();x.stroke();
  // heart badge on door
  x.save();x.translate(-110,-22);x.fillStyle=C.rust;x.beginPath();x.moveTo(0,12);x.bezierCurveTo(-26,-6,-12,-24,0,-10);x.bezierCurveTo(12,-24,26,-6,0,12);x.fill();x.restore();
  // just married sign
@@ -302,6 +352,10 @@ function car(){
  x.restore();
  wheel(cx-150,base+40+bob*.3);wheel(cx+170,base+40+bob*.3);
 }
+function skid(){if(!SKID)return;const end=SKID.c1===null?cam:SKID.c1;x.save();x.lineCap='round';x.strokeStyle='rgba(30,8,6,.38)';x.lineWidth=9;
+ [CARX-150-10,CARX+170-10].forEach(wx=>{const a=SKID.c0-cam+wx,b=end-cam+wx;if(b<-20)return;x.beginPath();x.moveTo(Math.max(-20,a),GROUND+177);x.lineTo(b,GROUND+177);x.stroke()});x.restore();if(end-cam+CARX<-200)SKID=null}
+function smoke(dt){smokes.forEach(p=>{p.x+=p.vx*dt;p.y-=dt*30;p.a-=dt*.9;p.s+=dt*1.4});smokes=smokes.filter(p=>p.a>0);
+ smokes.forEach(p=>{x.globalAlpha=p.a*.7;x.fillStyle='#efe3cf';x.beginPath();x.arc(p.x,p.y,26*p.s,0,7);x.fill();x.globalAlpha=1})}
 function puff(dt){
  if(speed>8&&Math.random()<dt*speed*.06)puffs.push({x:200,y:GROUND+118,a:1,s:.5+Math.random()*.4});
  puffs.forEach(p=>{p.x-=dt*(60+speed*2.2);p.y-=dt*40;p.a-=dt*.9;p.s+=dt*.6});
@@ -312,17 +366,25 @@ function puff(dt){
 function frame(now){
  const dt=Math.min(.04,(now-last)/1000);last=now;t+=dt;
  let adv;
- if(state==='brake'&&camTarget!==null){const r=camTarget-cam;speed=r>BRAKE?MAX:Math.max(4,MAX*Math.sqrt(r/BRAKE));adv=Math.min(r,speed*PX*dt);if(r-adv<.5){adv=r;speed=0}}
- else{if(state!=='stopped')speed+=(target-speed)*Math.min(1,dt*2.6);adv=speed*PX*dt}
+ if(state==='brake'){const r=camTarget-cam;
+  if(BK.tb===null){speed+=(Math.max(speed,130)-speed)*Math.min(1,dt*4);adv=speed*PX*dt;
+   if(r-adv<=BK.Db){BK.tb=t;BK.v=speed*PX;BK.T=Math.min(3,Math.max(1.6,2*BK.Db/BK.v));SKID={c0:cam+(r-BK.Db),c1:null};sfxBrake(BK.T)}}
+  if(BK.tb!==null){const u=Math.min(1,(t-BK.tb)/BK.T),q=1-u;adv=(camTarget-BK.Db*q*q)-cam;speed=2*BK.Db/BK.T*q/PX;
+   dip+=(.05*Math.min(1,q*1.6)-dip)*Math.min(1,dt*14);
+   if(Math.random()<dt*28*q)[CARX-150,CARX+170].forEach(wx=>smokes.push({x:wx,y:GROUND+170,a:.8,s:.4+Math.random()*.3,vx:-60-Math.random()*80}));
+   if(u>=1){adv=camTarget-cam;speed=0;state='halt';haltT=t;SKID.c1=camTarget;sfxThud();$('msg').textContent=SPIN&&SPIN.done?'停好了 ♥':'轉轉轉…'}}}
+ else if(state==='halt'||state==='stopped'){speed=0;adv=0;dip+=(0-dip)*Math.min(1,dt*7)}
+ else{speed=target>speed?Math.min(target,speed+dt*(78+40*(1-speed/MAX))):Math.max(target,speed-dt*120);adv=speed*PX*dt}
+ spinTick();
  $('km').textContent=Math.round(speed);
  cam+=adv;wheelA+=adv/46;engine();
- if(state==='brake'&&camTarget!==null&&!braked&&camTarget-cam<=BRAKE){braked=true;sfxBrake()}
- world();puff(dt);car();
- if(state==='brake'&&speed===0){state='stopped';$('msg').textContent='幸福補給完成 ♥';
+ {const si=Math.floor((cam*PAR+CARX-220)/SP+.5);if(lastSign!==null&&si!==lastSign&&speed>70&&state!=='halt')sfxWhoosh(speed/MAX);lastSign=si}
+ world();skid();smoke(dt);puff(dt);car();
+ if(state==='halt'&&SPIN&&SPIN.done&&t-SPIN.settleT>.7&&t-haltT>.6){state='stopped';$('msg').textContent='幸福補給完成 ♥';
   if(won&&!won.error){$('stopAt').textContent=won.vendor;$('prize').textContent=won.name+(won.value?'｜價值 $'+Number(won.value).toLocaleString():'');$('redeem').textContent=won.redeem;$('redeem').className=won.redeem.includes('下訂')?'hot':''}
-  else if(won&&won.error){$('stopAt').textContent='網路忙碌中';$('prize').textContent='請工作人員協助，按「下一組」再試一次';$('redeem').textContent=''}
+  else if(won&&won.error){$('stopAt').textContent='網路忙碌中';$('prize').innerHTML='請工作人員協助，按「下一組」再試一次<br><small style="opacity:.6">'+(won.why||'')+'</small>';$('redeem').textContent=''}
   else{$('stopAt').textContent='本時段獎品已全數送出';$('prize').textContent='謝謝參加，祝新婚愉快 ♥';$('redeem').textContent=''}
-  setTimeout(()=>{sfxWin();$('result').style.display='grid';requestAnimationFrame(()=>$('result').classList.add('show'))},700)}
+  setTimeout(()=>{sfxWin();$('result').style.display='grid';requestAnimationFrame(()=>$('result').classList.add('show'))},350)}
  requestAnimationFrame(frame);
 }
 try{if(localStorage.getItem('lf_snd')==='0'){AU.on=false;$('snd').textContent='🔇'}}catch(e){}
