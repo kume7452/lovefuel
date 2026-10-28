@@ -66,7 +66,7 @@ function render(j){
  $('upd').textContent='更新：'+new Date().toLocaleTimeString('zh-TW',{hour12:false});
  const tq=j.batches.reduce((a,b)=>a+b.qty,0),tl=j.batches.reduce((a,b)=>a+b.left,0);
  $('sum').innerHTML=j.batches.map(b=>`<div class="${b.bk===cur?'now':(b.bk!=='T'&&!b.left?'done':'')}"><small>${BN[b.bk]}${b.bk===cur?'（進行中）':''}</small><b>${b.left} / ${b.qty}</b>${b.paused?`<small>暫停 ${b.paused}</small>`:''}</div>`).join('')
-  +`<div><small>總剩餘 / 總數</small><b>${tl} / ${tq}</b></div><div><small>已抽出｜今日</small><b>${j.drawn}｜${j.today}</b></div>`;
+  +`<div><small>總剩餘 / 總數</small><b>${tl} / ${tq}</b></div><div><small>已抽出｜今日｜保留中</small><b>${j.drawn}｜${j.today}｜${j.held||0}</b></div>`;
  $('th').innerHTML='<th>廠商</th><th>獎項</th>'+['1','2','3','T'].map(k=>`<th class="${k===cur?'nowc':''}">${BN[k]}<br><small>剩餘/原始</small></th>`).join('')+'<th>機率</th><th>開放設定</th><th>狀態</th><th></th>';
  $('tb').innerHTML=j.prizes.map(p=>{const any=p.left[1]+p.left[2]+p.left[3]+p.left.T;
   return `<tr class="${any?'':'dim'}"><td>${p.vendor}</td><td>${p.name}</td>`

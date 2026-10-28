@@ -394,6 +394,7 @@ function frame(now){
  {const si=Math.floor((cam*PAR+CARX-220)/SP+.5);if(lastSign!==null&&si!==lastSign&&speed>70&&state!=='halt')sfxWhoosh(speed/MAX);lastSign=si}
  world();skid();smoke(dt);puff(dt);car();
  if(state==='halt'&&SPIN&&SPIN.done&&t-SPIN.settleT>.7&&t-haltT>.6){state='stopped';$('msg').textContent='幸福補給完成 ♥';
+  if(won&&won.tid)fetch(API+'?action=claim&key='+encodeURIComponent(KEY)+'&tid='+won.tid).catch(()=>{});
   if(won&&!won.error){$('stopAt').textContent=won.vendor;$('prize').textContent=won.name+(won.value?'｜價值 $'+Number(won.value).toLocaleString():'');$('redeem').textContent=won.redeem;$('redeem').className=won.redeem.includes('下訂')?'hot':''}
   else if(won&&won.error){$('stopAt').textContent='網路忙碌中';$('prize').innerHTML='請工作人員協助，按「下一組」再試一次<br><small style="opacity:.6">'+(won.why||'')+'</small>';$('redeem').textContent=''}
   else{$('stopAt').textContent='本時段獎品已全數送出';$('prize').textContent='謝謝參加，祝新婚愉快 ♥';$('redeem').textContent=''}
