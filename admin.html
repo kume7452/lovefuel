@@ -20,6 +20,9 @@ select{font:inherit;border:2px solid var(--wine);border-radius:8px;background:#f
 #login{max-width:340px;margin:18vh auto;background:#fff;border:3px solid var(--wine);border-radius:22px;padding:24px;text-align:center}
 #login input{font:inherit;font-size:22px;width:100%;text-align:center;border:2px solid var(--wine);border-radius:10px;padding:6px;margin:12px 0}
 #msg{color:var(--rust);font-weight:900;min-height:1.5em}small{opacity:.75}
+.form{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-top:8px;align-items:end}
+.form label{display:flex;flex-direction:column;font-size:13px}.form input,.form select{font:inherit;border:2px solid var(--wine);border-radius:8px;padding:3px 6px}
+.q{cursor:pointer;text-decoration:underline dotted}.del{background:none;color:var(--rust);padding:0 .4em;font-size:18px}
 @media(max-width:800px){.sum{grid-template-columns:repeat(3,1fr)}}
 </style></head><body>
 <div id="login"><h1>後台登入</h1><input id="pin" type="password" inputmode="numeric" placeholder="密碼" autofocus><button onclick="login()">進入</button><div id="msg"></div></div>
@@ -29,6 +32,15 @@ select{font:inherit;border:2px solid var(--wine);border-radius:8px;background:#f
  <div class="box" id="time"></div>
  <div class="sum" id="sum"></div>
  <div class="card"><table><thead><tr id="th"></tr></thead><tbody id="tb"></tbody></table></div>
+ <details class="box" id="addbox"><summary><b>＋ 新增獎項</b></summary>
+  <div class="form">
+   <label>廠商<input id="f_vendor"></label><label>獎項名稱<input id="f_name"></label>
+   <label>價值<input id="f_value" type="number"></label><label>兌換方式<input id="f_redeem" value="下訂兌換處"></label>
+   <label>招牌圖示<select id="f_sign">${''}</select></label>
+   <label>第一批<input id="f_q1" type="number" min="0" value="0"></label><label>第二批<input id="f_q2" type="number" min="0" value="0"></label><label>第三批<input id="f_q3" type="number" min="0" value="0"></label>
+   <label>定時加入數量<input id="f_qT" type="number" min="0" value="0"></label><label>定時加入時間<input id="f_tAt" type="datetime-local"></label><label>保底時間<input id="f_fAt" type="datetime-local"></label>
+   <button onclick="addP()">新增</button>
+  </div></details>
  <b>最近 50 筆抽獎紀錄</b>
  <div class="card"><table style="min-width:600px"><thead><tr><th>時間</th><th>批次</th><th>廠商</th><th>獎項</th><th>裝置</th></tr></thead><tbody id="lg"></tbody></table></div>
 </div>
@@ -55,14 +67,21 @@ function render(j){
  const tq=j.batches.reduce((a,b)=>a+b.qty,0),tl=j.batches.reduce((a,b)=>a+b.left,0);
  $('sum').innerHTML=j.batches.map(b=>`<div class="${b.bk===cur?'now':(b.bk!=='T'&&!b.left?'done':'')}"><small>${BN[b.bk]}${b.bk===cur?'（進行中）':''}</small><b>${b.left} / ${b.qty}</b>${b.paused?`<small>暫停 ${b.paused}</small>`:''}</div>`).join('')
   +`<div><small>總剩餘 / 總數</small><b>${tl} / ${tq}</b></div><div><small>已抽出｜今日</small><b>${j.drawn}｜${j.today}</b></div>`;
- $('th').innerHTML='<th>廠商</th><th>獎項</th>'+['1','2','3','T'].map(k=>`<th class="${k===cur?'nowc':''}">${BN[k]}<br><small>剩餘/原始</small></th>`).join('')+'<th>機率</th><th>開放設定</th><th>狀態</th>';
+ $('th').innerHTML='<th>廠商</th><th>獎項</th>'+['1','2','3','T'].map(k=>`<th class="${k===cur?'nowc':''}">${BN[k]}<br><small>剩餘/原始</small></th>`).join('')+'<th>機率</th><th>開放設定</th><th>狀態</th><th></th>';
  $('tb').innerHTML=j.prizes.map(p=>{const any=p.left[1]+p.left[2]+p.left[3]+p.left.T;
   return `<tr class="${any?'':'dim'}"><td>${p.vendor}</td><td>${p.name}</td>`
-  +['1','2','3','T'].map(k=>`<td class="ed ${k===cur?'nowc':''}"><input type="number" min="0" value="${p.left[k]}" ${p.qty[k]||p.left[k]?'':'disabled'} onchange="adj('${p.id}','${k}',this.value)"><small>/ ${p.qty[k]}</small></td>`).join('')
-  +`<td>${(p.prob*100).toFixed(1)}%</td><td><select onchange="mode('${p.id}',this.value)">${[['auto',p.tAt?'依時間 '+p.tAt.slice(5,16):'自動'],['open',p.tAt?'立即加入':'自動（同上）'],['closed','暫停']].map(([v,l])=>`<option value="${v}" ${p.mode===v?'selected':''}>${l}</option>`).join('')}</select>${p.forceAt?`<br><small>保底 ${p.forceAt.slice(5,16)}</small>`:''}</td><td>${st(p,cur)}</td></tr>`}).join('');
+  +['1','2','3','T'].map(k=>`<td class="ed ${k===cur?'nowc':''}"><input type="number" min="0" value="${p.left[k]}" ${p.qty[k]||p.left[k]?'':'disabled'} onchange="adj('${p.id}','${k}',this.value)"><small class="q" title="點擊修改原始數量" onclick="setQ('${p.id}','${k}',${p.qty[k]})">/ ${p.qty[k]}</small></td>`).join('')
+  +`<td>${(p.prob*100).toFixed(1)}%</td><td><select onchange="mode('${p.id}',this.value)">${[['auto',p.tAt?'依時間 '+p.tAt.slice(5,16):'自動'],['open',p.tAt?'立即加入':'自動（同上）'],['closed','暫停']].map(([v,l])=>`<option value="${v}" ${p.mode===v?'selected':''}>${l}</option>`).join('')}</select>${p.forceAt?`<br><small>保底 ${p.forceAt.slice(5,16)}</small>`:''}</td><td>${st(p,cur)}</td><td><button class="del" title="刪除獎項" onclick="delP('${p.id}','${p.vendor} ${p.name}')">✕</button></td></tr>`}).join('');
  $('lg').innerHTML=j.recent.length?j.recent.map(r=>`<tr><td>${r[0]}</td><td>${r[4]}</td><td>${r[1]}</td><td>${r[2]}</td><td><small>${r[3]}</small></td></tr>`).join(''):'<tr><td colspan="5">尚無紀錄</td></tr>'}
 async function upd(q){busy=true;try{const j=await call(q);if(j.ok)render(j);else alert(j.error)}catch(e){alert('儲存失敗，請重試')}busy=false}
 function adj(id,bk,v){document.activeElement.blur();upd('action=set&id='+id+'&bk='+bk+'&left='+Math.max(0,Math.floor(+v||0)))}
+const SIGNS=[['ring','戒指'],['dress','婚紗'],['heel','高跟鞋'],['tie','領帶'],['camera','相機'],['cake','喜餅'],['beauty','美容'],['perfume','香水'],['trip','旅行'],['bouq','捧花'],['mail','喜帖'],['cheer','乾杯']];
+$('f_sign').innerHTML=SIGNS.map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
+function setQ(id,bk,q){const v=prompt(BN[bk]+' 原始數量改為？（剩餘會同步增減）',q);if(v===null||v==='')return;upd('action=set&id='+id+'&bk='+bk+'&qty='+Math.max(0,Math.floor(+v||0)))}
+function delP(id,n){if(!confirm('刪除「'+n+'」？\n（已抽出的紀錄會保留）'))return;upd('action=del&id='+id)}
+function addP(){const f=k=>$('f_'+k).value.trim(),ks=['vendor','name','value','redeem','sign','q1','q2','q3','qT','tAt','fAt'];
+ if(!f('vendor')||!f('name'))return alert('請填廠商與獎項名稱');
+ upd('action=add&'+ks.map(k=>k+'='+encodeURIComponent(f(k))).join('&')).then(()=>{['vendor','name','value'].forEach(k=>$('f_'+k).value='');['q1','q2','q3','qT'].forEach(k=>$('f_'+k).value=0);$('f_tAt').value=$('f_fAt').value=''})}
 function mode(id,v){upd('action=set&id='+id+'&mode='+v)}
 function reset(){if(!confirm('全部獎項恢復原始數量、清空紀錄？\n（舊紀錄會自動備份成新工作表）'))return;upd('action=reset')}
 async function csv(){const j=await call('action=log');if(!j.ok)return alert(j.error);
