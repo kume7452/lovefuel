@@ -48,6 +48,7 @@ function st(p,cur){const L=p.left,any=L[1]+L[2]+L[3]+L.T;
  if(L.T&&!p.timedOpen)return'<span class="tg wait">'+p.tAt.slice(5,16)+' 加入</span>';
  return'<span class="tg wait">等待下一批</span>'}
 function render(j){
+ if(!j.batches){$('time').innerHTML='<b style="color:#c34f32">⚠️ 後端目前跑的還是舊版程式：請到 Apps Script → 部署 → 管理部署作業 → ✏️編輯 → 版本選「新版本」→ 部署</b>';$('upd').textContent='';return}
  const cur=j.current;
  $('time').innerHTML='<b>伺服器時間（台灣）</b>　'+j.serverTime+'　｜　<b>目前開抽：'+(cur?BN[cur]:'三批已全部抽完')+'</b>　<small>第一批全部抽完才會開始第二批；暫停中的獎項不影響換批</small>';
  $('upd').textContent='更新：'+new Date().toLocaleTimeString('zh-TW',{hour12:false});
