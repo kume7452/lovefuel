@@ -1,6 +1,9 @@
 <!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
 <title>愛情加油中｜好婚市集</title>
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="愛情加油中">
+<link rel="manifest" href="manifest.json">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@700;900&family=Yellowtail&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#fbecca;--cream:#fef4e8;--wine:#7d1811;--rust:#c34f32;--pink:#f4c4b6;--teal:#4f9a9a;--gold:#f2a01e;--green:#8a9473}
@@ -31,10 +34,11 @@ button:active{transform:translateY(4px);box-shadow:0 3px 0 #4d0d09}
 #admin .ed{white-space:nowrap}#admin .ed input{width:4.2em;font:inherit;font-weight:900;text-align:center;border:2px solid #7d1811;border-radius:8px;padding:.15em}#admin .ed button{padding:.15em .55em;margin:0 .2em;outline:0;border-width:2px}
 #admin select{font:inherit;border:2px solid #7d1811;border-radius:8px;padding:.15em;background:#fff;color:#7d1811}
 #admin button{font-size:clamp(12px,1.2vw,17px);padding:.5em 1.1em;margin-right:.6em;box-shadow:none}
+#fs{position:absolute;left:50%;top:3%;transform:translateX(70%);width:2.6em;height:2.6em;padding:0;font-size:clamp(14px,1.6vw,22px);background:var(--cream);color:var(--wine);border:3px solid var(--wine);outline:0;box-shadow:3px 3px 0 var(--rust);z-index:5}#fs.hide{display:none}
 </style></head><body>
 <div id="stage"><canvas id="c"></canvas>
 <div id="msg" class="pill">準備好，一起出發！</div><div id="spd" class="pill"><b id="km">0</b> LOVE km/h</div>
-<button id="snd" onclick="aInit();setSound(!AU.on)">🔊</button><div id="controls"><button id="start">♥ 發動愛情</button><button id="stop">● 停車</button></div>
+<button id="fs" onclick="toggleFS()" title="全螢幕">⛶</button><button id="snd" onclick="aInit();setSound(!AU.on)">🔊</button><div id="controls"><button id="start">♥ 發動愛情</button><button id="stop">● 停車</button></div>
 <div id="result"><div class="card"><div class="s">Love Fueling</div><h1>幸福補給完成 ♥</h1><p id="stopAt" style="margin:0 0 .2em;font-size:clamp(15px,1.8vw,26px)"></p><p id="prize">這裡接正式獎項名稱與庫存抽獎邏輯</p><div id="redeem"></div><button onclick="resetGame()">下一組</button></div></div>
 </div>
 <script>
@@ -76,6 +80,14 @@ function takeTicket(){let o=NEXT;NEXT=null;if(!o||Date.now()-o.at>TICKET_MIN*6e4
 setInterval(()=>{if(NEXT&&Date.now()-NEXT.at>TICKET_MIN*6e4){const o=NEXT;NEXT=null;o.p.then(releaseTicket)}},30000);
 addEventListener('pagehide',()=>{if(NEXT&&NEXT.res&&NEXT.res.tid)navigator.sendBeacon(API+'?action=release&key='+encodeURIComponent(KEY)+'&tid='+NEXT.res.tid)});
 let ROUND=0,driveT=0;const AUTO_BRAKE=12; // 開車超過幾秒沒按，自動煞車
+/* 全螢幕：右上 ⛶ 切換；按「發動愛情」時自動進入。iPhone 不支援網頁全螢幕 → 用「加入主畫面」開啟即為全螢幕 */
+const DE=document.documentElement,FSOK=!!(DE.requestFullscreen||DE.webkitRequestFullscreen),
+ isFS=()=>!!(document.fullscreenElement||document.webkitFullscreenElement),STANDALONE=matchMedia('(display-mode: fullscreen),(display-mode: standalone)').matches||navigator.standalone;
+function enterFS(){try{const r=(DE.requestFullscreen||DE.webkitRequestFullscreen).call(DE,{navigationUI:'hide'});if(r&&r.catch)r.catch(()=>{})}catch(e){}}
+function toggleFS(){if(!FSOK){alert('iPhone 請用 Safari「分享 → 加入主畫面」，從桌面圖示開啟即為全螢幕');return}
+ if(isFS())(document.exitFullscreen||document.webkitExitFullscreen).call(document);else enterFS()}
+if(STANDALONE)$('fs').classList.add('hide');
+$('start').addEventListener('click',()=>{if(FSOK&&!isFS()&&!STANDALONE)enterFS()});
 $('start').onclick=()=>{aInit();sfxStart();setTimeout(sfxHorn,1300);state='drive';driveT=t;won=null;const my=++ROUND;takeTicket().then(r=>{if(my===ROUND)won=r}); // 用預抽好的結果，煞車時立即揭曉
  target=MAX;$('start').style.display='none';$('stop').style.display='block';$('msg').textContent='往前開！想停就按停車'};
 let camTarget=null,won=null,braked=false,SPIN=null,BK=null,dip=0,SKID=null,smokes=[],lastSign=null;const BRAKED=1150;let haltT=0;
